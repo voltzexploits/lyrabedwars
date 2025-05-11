@@ -39,7 +39,7 @@ local categories = {
     { Name = "COMBAT", Buttons = {"AIM ASSIST", "AUTO CLICKER"} },
     { Name = "PLAYER", Buttons = {"FLY", "SPEED", "INF JUMP", "FOV"} },
     { Name = "WORLD", Buttons = {} },
-    { Name = "MISC", Buttons = {} }
+    { Name = "MISC", Buttons = {"ESP"} }
 }
 
 -- State variables
@@ -52,6 +52,8 @@ local flySpeedVertical = 50
 local infJump = false
 local speedEnabled = false
 local walkSpeed = 23
+local espEnabled = false
+local espHighlights = {}
 
 -- Toggle Button Behavior
 local function toggleButton(button)
@@ -65,7 +67,6 @@ end
 local function getClosestPlayerToCursor()
     local closestPlayer = nil
     local closestDistance = math.huge
-
     for _, player in ipairs(Players:GetPlayers()) do
         if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("Head") then
             local screenPoint, onScreen = Camera:WorldToViewportPoint(player.Character.Head.Position)
@@ -79,8 +80,34 @@ local function getClosestPlayerToCursor()
             end
         end
     end
-
     return closestPlayer
+end
+
+-- ESP Management
+local function updateESP()
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+            if not espHighlights[player] then
+                local highlight = Instance.new("Highlight")
+                highlight.Adornee = player.Character
+                highlight.FillColor = Color3.fromRGB(170, 0, 255)
+                highlight.FillTransparency = 0.4
+                highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+                highlight.OutlineTransparency = 0.5
+                highlight.Parent = player.Character
+                espHighlights[player] = highlight
+            end
+        end
+    end
+end
+
+local function removeESP()
+    for player, highlight in pairs(espHighlights) do
+        if highlight and highlight.Parent then
+            highlight:Destroy()
+        end
+    end
+    espHighlights = {}
 end
 
 -- Build GUI Buttons
@@ -159,6 +186,13 @@ local function createCategory(xOffset, category)
                 end
             elseif buttonText == "FOV" then
                 Camera.FieldOfView = 120
+            elseif buttonText == "ESP" then
+                espEnabled = not espEnabled
+                if espEnabled then
+                    updateESP()
+                else
+                    removeESP()
+                end
             end
         end)
     end
@@ -211,11 +245,12 @@ end)
 
 task.spawn(function()
     while true do
+        task.wait(0.05)
         if autoClicking and mouseDown then
             VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, nil, 0)
+            task.wait()
             VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, nil, 0)
         end
-        task.wait(0.01)
     end
 end)
 
@@ -226,34 +261,20 @@ UserInputService.JumpRequest:Connect(function()
     end
 end)
 
--- Fly
-local keysDown = {}
-UserInputService.InputBegan:Connect(function(input)
-    keysDown[input.KeyCode] = true
-end)
-UserInputService.InputEnded:Connect(function(input)
-    keysDown[input.KeyCode] = false
-end)
-
+-- Fly Movement
 RunService.RenderStepped:Connect(function()
     if flying and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-        local hrp = LocalPlayer.Character.HumanoidRootPart
+        local root = LocalPlayer.Character.HumanoidRootPart
         local direction = Vector3.zero
-        if keysDown[Enum.KeyCode.W] then direction += Camera.CFrame.LookVector end
-        if keysDown[Enum.KeyCode.S] then direction -= Camera.CFrame.LookVector end
-        if keysDown[Enum.KeyCode.A] then direction -= Camera.CFrame.RightVector end
-        if keysDown[Enum.KeyCode.D] then direction += Camera.CFrame.RightVector end
-        if keysDown[Enum.KeyCode.Space] then direction += Vector3.new(0, 1, 0) end
-        if keysDown[Enum.KeyCode.LeftControl] then direction -= Vector3.new(0, 1, 0) end
+        if UserInputService:IsKeyDown(Enum.KeyCode.W) then direction += Camera.CFrame.LookVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.S) then direction -= Camera.CFrame.LookVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.A) then direction -= Camera.CFrame.RightVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.D) then direction += Camera.CFrame.RightVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then direction += Vector3.new(0, 1, 0) end
+        if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then direction -= Vector3.new(0, 1, 0) end
 
-        local velocity = Vector3.new(
-            direction.X * flySpeedHorizontal,
-            direction.Y * flySpeedVertical,
-            direction.Z * flySpeedHorizontal
-        )
-        local bv = hrp:FindFirstChild("BodyVelocity") or Instance.new("BodyVelocity", hrp)
-        bv.Velocity = velocity
-        bv.MaxForce = Vector3.new(1e5, 1e5, 1e5)
-        bv.P = 1e5
+        local bodyVelocity = root:FindFirstChild("BodyVelocity") or Instance.new("BodyVelocity", root)
+        bodyVelocity.Velocity = direction.Unit * flySpeedHorizontal
+        bodyVelocity.MaxForce = Vector3.new(1, 1, 1) * 1e5
     end
 end)
