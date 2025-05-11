@@ -34,25 +34,26 @@ shadow.ImageTransparency = 0.8
 shadow.BackgroundTransparency = 1
 shadow.ZIndex = 0
 
--- Section definitions
+-- Category definitions with only working buttons
 local categories = {
     {
         Name = "COMBAT",
-        Buttons = {"AIM ASSIST", "KILLAURA", "AUTO CLICKER"}
+        Buttons = {"AIM ASSIST", "AUTO CLICKER"} -- Only working buttons kept
     },
     {
         Name = "PLAYER",
-        Buttons = {"FLY", "SPEED", "INF JUMP", "FOV"}
-    },
-    {
-        Name = "MISC",
-        Buttons = {"CRASHER", "ANTICRASH", "PLAYER HUD"}
+        Buttons = {"FLY", "SPEED", "INF JUMP", "FOV"} -- Only working buttons kept
     },
     {
         Name = "WORLD",
-        Buttons = {"ANTIVOID"}
+        Buttons = {} -- No working buttons here, left empty
+    },
+    {
+        Name = "MISC",
+        Buttons = {} -- No working buttons here, left empty
     }
 }
+
 
 -- State variables
 local buttonStates = {}
@@ -63,14 +64,12 @@ local flySpeed = 50
 local infJump = false
 local speedEnabled = false
 local speedMultiplier = 2
-local jumpConnection
 
 -- Toggle Button Behavior
 local function toggleButton(button)
     local currentState = buttonStates[button] or false
     local newState = not currentState
     buttonStates[button] = newState
-
     button.BackgroundColor3 = newState and Color3.fromRGB(50, 0, 100) or Color3.fromRGB(80, 0, 200)
 end
 
@@ -159,7 +158,7 @@ local function createCategory(xOffset, category)
             elseif buttonText == "SPEED" then
                 speedEnabled = not speedEnabled
             elseif buttonText == "FOV" then
-                Camera.FieldOfView = 120 -- no max cap
+                Camera.FieldOfView = 120
             end
         end)
     end
@@ -199,19 +198,19 @@ end)
 
 -- Auto Clicker
 local mouseDown = false
-UserInputService.InputBegan:Connect(function(input, gpe)
+UserInputService.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 then
         mouseDown = true
     end
 end)
 
-UserInputService.InputEnded:Connect(function(input, gpe)
+UserInputService.InputEnded:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 then
         mouseDown = false
     end
 end)
 
-spawn(function()
+task.spawn(function()
     while true do
         if autoClicking and mouseDown then
             VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, nil, 0)
@@ -246,7 +245,5 @@ end)
 RunService.RenderStepped:Connect(function()
     if speedEnabled and LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid") then
         LocalPlayer.Character:FindFirstChildOfClass("Humanoid").WalkSpeed = 16 * speedMultiplier
-    elseif LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid") then
-        LocalPlayer.Character:FindFirstChildOfClass("Humanoid").WalkSpeed = 16
     end
 end)
