@@ -36,34 +36,22 @@ shadow.ZIndex = 0
 
 -- Category definitions with only working buttons
 local categories = {
-    {
-        Name = "COMBAT",
-        Buttons = {"AIM ASSIST", "AUTO CLICKER"} -- Only working buttons kept
-    },
-    {
-        Name = "PLAYER",
-        Buttons = {"FLY", "SPEED", "INF JUMP", "FOV"} -- Only working buttons kept
-    },
-    {
-        Name = "WORLD",
-        Buttons = {} -- No working buttons here, left empty
-    },
-    {
-        Name = "MISC",
-        Buttons = {} -- No working buttons here, left empty
-    }
+    { Name = "COMBAT", Buttons = {"AIM ASSIST", "AUTO CLICKER"} },
+    { Name = "PLAYER", Buttons = {"FLY", "SPEED", "INF JUMP", "FOV"} },
+    { Name = "WORLD", Buttons = {} },
+    { Name = "MISC", Buttons = {} }
 }
-
 
 -- State variables
 local buttonStates = {}
 local aiming = false
 local autoClicking = false
 local flying = false
-local flySpeed = 50
+local flySpeedHorizontal = 23
+local flySpeedVertical = 50
 local infJump = false
 local speedEnabled = false
-local speedMultiplier = 2
+local walkSpeed = 23
 
 -- Toggle Button Behavior
 local function toggleButton(button)
@@ -73,7 +61,7 @@ local function toggleButton(button)
     button.BackgroundColor3 = newState and Color3.fromRGB(50, 0, 100) or Color3.fromRGB(80, 0, 200)
 end
 
--- Find closest player to cursor
+-- Get Closest Player to Cursor
 local function getClosestPlayerToCursor()
     local closestPlayer = nil
     local closestDistance = math.huge
@@ -95,7 +83,7 @@ local function getClosestPlayerToCursor()
     return closestPlayer
 end
 
--- GUI Button Builder
+-- Build GUI Buttons
 local function createCategory(xOffset, category)
     local panel = Instance.new("Frame")
     panel.Size = UDim2.new(0, 220, 0, 420)
@@ -153,10 +141,22 @@ local function createCategory(xOffset, category)
                 autoClicking = not autoClicking
             elseif buttonText == "FLY" then
                 flying = not flying
+                if not flying then
+                    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                        for _, obj in ipairs(LocalPlayer.Character.HumanoidRootPart:GetChildren()) do
+                            if obj:IsA("BodyVelocity") then obj:Destroy() end
+                        end
+                    end
+                end
             elseif buttonText == "INF JUMP" then
                 infJump = not infJump
             elseif buttonText == "SPEED" then
                 speedEnabled = not speedEnabled
+                if speedEnabled then
+                    LocalPlayer.Character.Humanoid.WalkSpeed = walkSpeed
+                else
+                    LocalPlayer.Character.Humanoid.WalkSpeed = 16
+                end
             elseif buttonText == "FOV" then
                 Camera.FieldOfView = 120
             end
@@ -164,7 +164,6 @@ local function createCategory(xOffset, category)
     end
 end
 
--- Build the UI categories
 for i, cat in ipairs(categories) do
     createCategory((i - 1) * 240 + 20, cat)
 end
@@ -186,7 +185,7 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
     end
 end)
 
--- Aim Assist loop
+-- Aim Assist
 RunService.RenderStepped:Connect(function()
     if aiming then
         local target = getClosestPlayerToCursor()
@@ -228,22 +227,33 @@ UserInputService.JumpRequest:Connect(function()
 end)
 
 -- Fly
-local flyVelocity = Instance.new("BodyVelocity")
-flyVelocity.Velocity = Vector3.zero
-flyVelocity.MaxForce = Vector3.new(1e5, 1e5, 1e5)
+local keysDown = {}
+UserInputService.InputBegan:Connect(function(input)
+    keysDown[input.KeyCode] = true
+end)
+UserInputService.InputEnded:Connect(function(input)
+    keysDown[input.KeyCode] = false
+end)
 
 RunService.RenderStepped:Connect(function()
     if flying and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-        flyVelocity.Parent = LocalPlayer.Character.HumanoidRootPart
-        flyVelocity.Velocity = Camera.CFrame.LookVector * flySpeed
-    else
-        flyVelocity.Parent = nil
-    end
-end)
+        local hrp = LocalPlayer.Character.HumanoidRootPart
+        local direction = Vector3.zero
+        if keysDown[Enum.KeyCode.W] then direction += Camera.CFrame.LookVector end
+        if keysDown[Enum.KeyCode.S] then direction -= Camera.CFrame.LookVector end
+        if keysDown[Enum.KeyCode.A] then direction -= Camera.CFrame.RightVector end
+        if keysDown[Enum.KeyCode.D] then direction += Camera.CFrame.RightVector end
+        if keysDown[Enum.KeyCode.Space] then direction += Vector3.new(0, 1, 0) end
+        if keysDown[Enum.KeyCode.LeftControl] then direction -= Vector3.new(0, 1, 0) end
 
--- Speed
-RunService.RenderStepped:Connect(function()
-    if speedEnabled and LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid") then
-        LocalPlayer.Character:FindFirstChildOfClass("Humanoid").WalkSpeed = 16 * speedMultiplier
+        local velocity = Vector3.new(
+            direction.X * flySpeedHorizontal,
+            direction.Y * flySpeedVertical,
+            direction.Z * flySpeedHorizontal
+        )
+        local bv = hrp:FindFirstChild("BodyVelocity") or Instance.new("BodyVelocity", hrp)
+        bv.Velocity = velocity
+        bv.MaxForce = Vector3.new(1e5, 1e5, 1e5)
+        bv.P = 1e5
     end
 end)
