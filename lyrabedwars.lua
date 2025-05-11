@@ -6,6 +6,7 @@ local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 local VirtualInputManager = game:GetService("VirtualInputManager")
+local StarterGui = game:GetService("StarterGui")
 
 -- GUI Setup
 local screenGui = Instance.new("ScreenGui")
@@ -57,6 +58,12 @@ local categories = {
 local buttonStates = {}
 local aiming = false
 local autoClicking = false
+local flying = false
+local flySpeed = 50
+local infJump = false
+local speedEnabled = false
+local speedMultiplier = 2
+local jumpConnection
 
 -- Toggle Button Behavior
 local function toggleButton(button)
@@ -145,6 +152,14 @@ local function createCategory(xOffset, category)
                 aiming = not aiming
             elseif buttonText == "AUTO CLICKER" then
                 autoClicking = not autoClicking
+            elseif buttonText == "FLY" then
+                flying = not flying
+            elseif buttonText == "INF JUMP" then
+                infJump = not infJump
+            elseif buttonText == "SPEED" then
+                speedEnabled = not speedEnabled
+            elseif buttonText == "FOV" then
+                Camera.FieldOfView = 120 -- no max cap
             end
         end)
     end
@@ -202,6 +217,36 @@ spawn(function()
             VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, nil, 0)
             VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, nil, 0)
         end
-        task.wait(0.05)
+        task.wait(0.01)
+    end
+end)
+
+-- Infinite Jump
+UserInputService.JumpRequest:Connect(function()
+    if infJump and LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid") then
+        LocalPlayer.Character:FindFirstChildOfClass("Humanoid"):ChangeState(Enum.HumanoidStateType.Jumping)
+    end
+end)
+
+-- Fly
+local flyVelocity = Instance.new("BodyVelocity")
+flyVelocity.Velocity = Vector3.zero
+flyVelocity.MaxForce = Vector3.new(1e5, 1e5, 1e5)
+
+RunService.RenderStepped:Connect(function()
+    if flying and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        flyVelocity.Parent = LocalPlayer.Character.HumanoidRootPart
+        flyVelocity.Velocity = Camera.CFrame.LookVector * flySpeed
+    else
+        flyVelocity.Parent = nil
+    end
+end)
+
+-- Speed
+RunService.RenderStepped:Connect(function()
+    if speedEnabled and LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid") then
+        LocalPlayer.Character:FindFirstChildOfClass("Humanoid").WalkSpeed = 16 * speedMultiplier
+    elseif LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid") then
+        LocalPlayer.Character:FindFirstChildOfClass("Humanoid").WalkSpeed = 16
     end
 end)
